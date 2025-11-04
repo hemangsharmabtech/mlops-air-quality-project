@@ -1,0 +1,5 @@
+outs:
+- md5: 492d926832edb025baaceb500850a445
+  size: 994187783
+  hash: md5
+  path: air_index_quality.csv

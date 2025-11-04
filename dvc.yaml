@@ -1,0 +1,20 @@
+stages:
+  train:
+    cmd: python train.py
+    deps:
+      - train.py
+      - data/raw/air_index_quality.csv
+      - params.yaml
+    params:
+      - train.random_state
+      - train.n_estimators
+      - train.test_size
+      - train.max_depth
+      - train.min_samples_split
+      - train.min_samples_leaf
+    metrics:
+      - models/metrics.txt:
+          cache: false
+    outs:
+      - data/processed/Processed_AirQuality.csv
+      - models/metrics.json

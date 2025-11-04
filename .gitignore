@@ -1,0 +1,41 @@
+# DVC
+.dvc/
+.dvcignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Model files (ignore actual model files but allow .dvc files)
+models/*.pkl
+models/*.joblib
+!models/*.dvc
+
+# Data files (ignore actual data files but allow .dvc files)
+data/raw/*.csv
+data/raw/*.json
+!data/raw/*.dvc
