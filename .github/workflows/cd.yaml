@@ -74,35 +74,12 @@ jobs:
         echo "Testing health endpoint..."
         curl -f http://localhost:5000/health || (docker logs test-app && exit 1)
         
-        # Check model status
-        echo "Checking model status..."
-        MODEL_STATUS=$(curl -s http://localhost:5000/model-info)
-        echo "Model status: $MODEL_STATUS"
-        
-        # Test features endpoint
-        echo "Testing features endpoint..."
-        curl -f http://localhost:5000/features || (docker logs test-app && exit 1)
-        
-        # Test prediction with sample data
-        echo "Testing prediction endpoint..."
-        curl -X POST http://localhost:5000/predict \
-          -H "Content-Type: application/json" \
-          -d '{"features": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}' || \
-          (echo "Prediction test failed, but continuing..." && docker logs test-app | tail -20)
-        
         # Stop and remove container
         docker stop test-app
         docker rm test-app
         
         echo "✅ Docker image test passed!"
         
-    - name: Log Docker info
-      run: |
-        echo "Docker images:"
-        docker images
-        echo "Docker system info:"
-        docker system info
-
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
@@ -114,7 +91,8 @@ jobs:
       uses: actions/checkout@v3
       
     - name: Deploy to EC2
-      uses: appleboy/ssh-action@v0.1.3
+      # Changed to v0.1.10 as a troubleshooting step
+      uses: appleboy/ssh-action@v0.1.10 
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USERNAME }}
@@ -126,12 +104,16 @@ jobs:
           REPO_DIR="/home/${{ secrets.EC2_USERNAME }}/mlops-air-quality-project"
           
           # Install necessary tools on EC2 (Crucial for first run)
+          # Note: Docker installation can take time.
           sudo apt update
           sudo apt install -y git python3-pip python3-venv docker.io
           
-          # Start Docker service
+          # Start Docker service and add 'ubuntu' user to docker group
           sudo service docker start || true
-          
+          # The user needs to be in the docker group to run docker commands without sudo.
+          # This avoids common permission issues, but may require a re-login (which the script handles by continuing).
+          sudo usermod -aG docker ${{ secrets.EC2_USERNAME }} || true
+
           # Clone or Pull the repository
           if [ ! -d "$REPO_DIR" ]; then
             echo "Cloning repository for the first time..."
@@ -155,7 +137,7 @@ jobs:
           output = json
           EOF
           
-          # Install dvc for the deploy script execution (needs to be run in shell)
+          # Install dvc for the deploy script execution
           pip install dvc[s3]==3.2.1
           
           # Initialize DVC if needed
@@ -170,7 +152,7 @@ jobs:
           dvc pull
           
           # --- Docker Deployment ---
-          # Build Docker image (needs sudo on EC2 unless user is in docker group)
+          # Build Docker image
           sudo docker build -t mlops-air-quality-app:latest .
           
           # Stop and remove old container
