@@ -125,7 +125,8 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           echo "🚀 Starting deployment to EC2..."
-          cd /home/ec2-user/mlops-air-quality-project
+          # This line ensures the correct username is used for the home path
+          cd /home/${{ secrets.EC2_USERNAME }}/mlops-air-quality-project
           
           # Pull latest code
           git pull origin main
