@@ -19,25 +19,25 @@ def load_params():
 def load_data():
     """Load and prepare the air quality data"""
     print("📁 Loading dataset...")
-    df = pd.read_csv("data/raw/air_index_quality.csv", low_memory=False)
-    print(f"✅ Dataset loaded. Shape: {df.shape}")
-    return df
+    try:
+        df = pd.read_csv("data/raw/air_index_quality.csv", low_memory=False)
+        print(f"✅ Dataset loaded. Shape: {df.shape}")
+        return df
+    except FileNotFoundError:
+        print("❌ Data file not found. Please ensure data/raw/air_index_quality.csv exists")
+        raise
 
 def preprocess_data(df):
-    """Preprocess the data based on your Kaggle notebook logic"""
+    """Preprocess the data"""
     print("🔄 Preprocessing data...")
     
-    # Select useful columns (same as your notebook)
+    # Select useful columns
     useful_cols = [
-        # Location
         'state_name', 'county_name', 'city_name', 'latitude', 'longitude',
-        # Pollutant / Measurement info
         'parameter_name', 'sample_duration', 'pollutant_standard',
         'units_of_measure', 'arithmetic_mean', 'first_max_value',
         'ninety_eight_percentile', 'arithmetic_standard_dev',
-        # Quality / completeness
         'observation_count', 'observation_percent', 'valid_day_count',
-        # Time info
         'year', 'date_of_last_change'
     ]
     
@@ -51,7 +51,7 @@ def preprocess_data(df):
     df['month'] = df['date_of_last_change'].dt.month
     df.drop(columns=['date_of_last_change'], inplace=True)
     
-    # Define target variable - pollution as "High" if mean_value > 50, else "Low"
+    # Define target variable
     df['pollution_level'] = np.where(df['arithmetic_mean'] > 50, 1, 0)
     print(f"✅ Target variable created. Class distribution:\n{df['pollution_level'].value_counts()}")
     
@@ -149,13 +149,7 @@ def train_model():
     joblib.dump(rf, model_path)
     print(f"\n💾 Model saved as {model_path}")
     
-    # Save processed data (optional)
-    processed_data_path = 'data/processed/Processed_AirQuality.csv'
-    os.makedirs('data/processed', exist_ok=True)
-    df.to_csv(processed_data_path, index=False)
-    print(f"💾 Preprocessed dataset saved as {processed_data_path}")
-    
-    # Save comprehensive metrics
+    # Save metrics
     metrics = {
         'accuracy': float(accuracy),
         'training_time_seconds': float(training_time),
@@ -169,20 +163,27 @@ def train_model():
             'test_samples': X_test.shape[0],
             'feature_count': X.shape[1]
         },
-        'model_parameters': train_params
+        'model_parameters': train_params,
+        'environment_info': {
+            'numpy_version': np.__version__,
+            'pandas_version': pd.__version__,
+            'sklearn_version': sklearn.__version__
+        }
     }
     
     # Save metrics as JSON
     with open('models/metrics.json', 'w') as f:
         json.dump(metrics, f, indent=2)
     
-    # Save simplified metrics for DVC (text format)
+    # Save simplified metrics for DVC
     with open('models/metrics.txt', 'w') as f:
         f.write(f"Accuracy: {accuracy:.4f}\n")
         f.write(f"Training_Time: {training_time:.2f} seconds\n")
         f.write(f"Train_Samples: {X_train.shape[0]}\n")
         f.write(f"Test_Samples: {X_test.shape[0]}\n")
         f.write(f"Feature_Count: {X.shape[1]}\n")
+        f.write(f"NumPy_Version: {np.__version__}\n")
+        f.write(f"Scikit_Learn_Version: {sklearn.__version__}\n")
     
     print("📊 Metrics saved to models/metrics.json and models/metrics.txt")
     
@@ -190,9 +191,11 @@ def train_model():
 
 if __name__ == "__main__":
     try:
+        import sklearn
         metrics = train_model()
         print("\n🎉 Training pipeline completed successfully!")
         print(f"📈 Final Accuracy: {metrics['accuracy']:.4f}")
+        print(f"🔧 Environment: NumPy {np.__version__}, scikit-learn {sklearn.__version__}")
     except Exception as e:
         print(f"❌ Error in training pipeline: {e}")
         raise
