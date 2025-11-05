@@ -1,0 +1,38 @@
+schema: '2.0'
+stages:
+  train:
+    cmd: python train.py
+    deps:
+    - path: data/raw/air_index_quality.csv
+      hash: md5
+      md5: 492d926832edb025baaceb500850a445
+      size: 994187783
+    - path: params.yaml
+      hash: md5
+      md5: 6b02e9b44cf93639cfbf27bc458d033f
+      size: 124
+    - path: train.py
+      hash: md5
+      md5: 04fe6e328b0ec01fb5b90ffa23a1127a
+      size: 6980
+    params:
+      params.yaml:
+        train.max_depth: 10
+        train.min_samples_leaf: 5
+        train.min_samples_split: 10
+        train.n_estimators: 200
+        train.random_state: 42
+        train.test_size: 0.2
+    outs:
+    - path: data/processed/Processed_AirQuality.csv
+      hash: md5
+      md5: 46d81aab3480b40d89142fd8d2f96b1f
+      size: 185853672
+    - path: models/metrics.json
+      hash: md5
+      md5: 9ddb4e5b10ba18e413dd72d473c3ec29
+      size: 2475
+    - path: models/metrics.txt
+      hash: md5
+      md5: 51d629cd8257a83be94c60ce85480b58
+      size: 109
