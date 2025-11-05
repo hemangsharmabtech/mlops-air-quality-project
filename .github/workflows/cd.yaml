@@ -27,10 +27,22 @@ jobs:
         pip install dvc[s3]
         
     - name: Configure AWS for DVC
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: |
-        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws configure set region us-east-1
+        # Configure AWS CLI using environment variables
+        mkdir -p ~/.aws
+        cat > ~/.aws/credentials << EOF
+        [default]
+        aws_access_key_id = ${AWS_ACCESS_KEY_ID}
+        aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}
+        region = ap-south-1
+        output = json
+        EOF
+        
+        # Verify AWS configuration
+        aws sts get-caller-identity
         
     - name: Pull data and model
       run: |
@@ -87,6 +99,16 @@ jobs:
           
           # Pull latest code
           git pull origin main
+          
+          # Configure AWS credentials on EC2
+          mkdir -p ~/.aws
+          cat > ~/.aws/credentials << EOF
+          [default]
+          aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          region = ap-south-1
+          output = json
+          EOF
           
           # Pull latest data and model
           dvc pull
