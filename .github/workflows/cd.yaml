@@ -23,7 +23,6 @@ jobs:
     - name: Install dependencies for DVC
       run: |
         python -m pip install --upgrade pip
-        # Removed legacy-resolver flag for a cleaner install
         pip install -r requirements.txt 
         
     - name: Configure AWS for DVC
@@ -47,7 +46,6 @@ jobs:
           dvc init --no-scm
         fi
         dvc remote add -d myremote s3://mlops-air-quality-bucket/storage || echo "Remote already exists"
-        # This will pull the latest model (which should be re-trained after the fix)
         dvc pull 
         
     - name: Set up Docker Buildx
@@ -56,7 +54,6 @@ jobs:
     - name: Build Docker image
       run: |
         echo "Building Docker image..."
-        # Build uses the updated Dockerfile with the clean install fix
         docker build -t mlops-air-quality-app:latest .
         echo "✅ Docker build completed"
         
@@ -79,7 +76,6 @@ jobs:
         
         # Check model status
         echo "Checking model status..."
-        # Note: Model status check is now part of /health, but keeping a separate check for robust testing
         MODEL_STATUS=$(curl -s http://localhost:5000/model-info)
         echo "Model status: $MODEL_STATUS"
         
@@ -125,13 +121,31 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           echo "🚀 Starting deployment to EC2..."
-          # This line ensures the correct username is used for the home path
-          cd /home/${{ secrets.EC2_USERNAME }}/mlops-air-quality-project
           
-          # Pull latest code
-          git pull origin main
+          # --- Environment Setup ---
+          REPO_DIR="/home/${{ secrets.EC2_USERNAME }}/mlops-air-quality-project"
           
-          # Configure AWS credentials on EC2
+          # Install necessary tools on EC2 (Crucial for first run)
+          sudo apt update
+          sudo apt install -y git python3-pip python3-venv docker.io
+          
+          # Start Docker service
+          sudo service docker start || true
+          
+          # Clone or Pull the repository
+          if [ ! -d "$REPO_DIR" ]; then
+            echo "Cloning repository for the first time..."
+            cd /home/${{ secrets.EC2_USERNAME }}
+            # 🚨 REMINDER: CHANGE THIS URL TO YOUR ACTUAL REPO
+            git clone https://github.com/hemangsharmabtech/mlops-air-quality-project.git mlops-air-quality-project
+            cd "$REPO_DIR"
+          else
+            cd "$REPO_DIR"
+            # Pull latest code
+            git pull origin main
+          fi
+          
+          # Configure AWS credentials on EC2 for DVC pull
           mkdir -p ~/.aws
           cat > ~/.aws/credentials << EOF
           [default]
@@ -140,6 +154,9 @@ jobs:
           region = us-east-1
           output = json
           EOF
+          
+          # Install dvc for the deploy script execution (needs to be run in shell)
+          pip install dvc[s3]==3.2.1
           
           # Initialize DVC if needed
           if [ ! -d ".dvc" ]; then
@@ -152,15 +169,20 @@ jobs:
           # Pull latest data and model
           dvc pull
           
-          # Build Docker image
-          docker build -t mlops-air-quality-app:latest .
+          # --- Docker Deployment ---
+          # Build Docker image (needs sudo on EC2 unless user is in docker group)
+          sudo docker build -t mlops-air-quality-app:latest .
           
           # Stop and remove old container
-          docker stop air-quality-app || true
-          docker rm air-quality-app || true
+          sudo docker stop air-quality-app || true
+          sudo docker rm air-quality-app || true
           
           # Run new container
-          docker run -d --name air-quality-app -p 5000:5000 mlops-air-quality-app:latest
+          # Pass AWS env vars to the running container for DVC access inside the app
+          sudo docker run -d --name air-quality-app -p 5000:5000 \
+            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            mlops-air-quality-app:latest
           
           # Wait for app to start
           sleep 15
@@ -171,6 +193,6 @@ jobs:
             echo "🌐 Application is running at: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):5000"
           else
             echo "❌ Deployment failed"
-            docker logs air-quality-app
+            sudo docker logs air-quality-app
             exit 1
           fi
