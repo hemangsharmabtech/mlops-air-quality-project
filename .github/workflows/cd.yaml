@@ -1,0 +1,110 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install dvc[s3]
+        
+    - name: Configure AWS for DVC
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws configure set region us-east-1
+        
+    - name: Pull data and model
+      run: |
+        dvc pull
+        
+    - name: Build Docker image
+      run: |
+        docker build -t mlops-air-quality-app:latest .
+        
+    - name: Test Docker image
+      run: |
+        # Run container in background
+        docker run -d --name test-app -p 5000:5000 mlops-air-quality-app:latest
+        
+        # Wait for app to start
+        sleep 15
+        
+        # Test the application
+        curl -f http://localhost:5000/health || exit 1
+        curl -f http://localhost:5000/features || exit 1
+        
+        # Stop and remove container
+        docker stop test-app
+        docker rm test-app
+        
+        echo "✅ Docker image test passed!"
+        
+    - name: Log Docker info
+      run: |
+        echo "Docker images:"
+        docker images
+        echo "Docker containers:"
+        docker ps -a
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v0.1.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          echo "🚀 Starting deployment to EC2..."
+          cd /home/ec2-user/mlops-air-quality-project
+          
+          # Pull latest code
+          git pull origin main
+          
+          # Pull latest data and model
+          dvc pull
+          
+          # Build Docker image
+          docker build -t mlops-air-quality-app:latest .
+          
+          # Stop and remove old container
+          docker stop air-quality-app || true
+          docker rm air-quality-app || true
+          
+          # Run new container
+          docker run -d --name air-quality-app -p 5000:5000 mlops-air-quality-app:latest
+          
+          # Wait for app to start
+          sleep 10
+          
+          # Test the deployment
+          curl -f http://localhost:5000/health && echo "✅ Deployment successful!" || echo "❌ Deployment failed"
+          
+          echo "🌐 Application is running at: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):5000"
