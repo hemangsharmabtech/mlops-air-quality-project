@@ -24,6 +24,7 @@ def create_fallback_model():
     logger.info("🔄 Creating fallback model...")
     try:
         # Create simple synthetic data matching your 17 features
+        # Note: This fallback model expects numerical data for all 17 features.
         X, y = make_classification(
             n_samples=1000,
             n_features=17,
@@ -51,6 +52,7 @@ def safe_model_load():
         # Try to load the main model
         if os.path.exists('models/air_quality_model.pkl'):
             logger.info("📥 Attempting to load main model...")
+            # Note: Your prediction logic assumes a model trained on numerical features only (via numpy array).
             model = joblib.load('models/air_quality_model.pkl')
             
             # Test the model with dummy data
@@ -96,27 +98,12 @@ def load_model_on_startup():
 # Load model immediately
 load_model_on_startup()
 
-@app.route('/')
-def home():
-    status = "Loaded" if model_loaded else "Not loaded"
-    if using_fallback:
-        status += " (Using Fallback Model)"
-    elif model_error:
-        status += f" (Error: {model_error})"
-    
-    return f"""
-    <h1>Air Quality Index Prediction API</h1>
-    <p><strong>MLOps Pipeline Status:</strong> COMPLETE ✅</p>
-    <p><strong>Model status:</strong> {status}</p>
-    <p><strong>Environment:</strong> Python {sys.version.split()[0]}, NumPy {np.__version__}</p>
-    <p><strong>Endpoints:</strong></p>
-    <ul>
-        <li><a href="/health">/health</a> - Service health check</li>
-        <li><a href="/features">/features</a> - Expected feature list</li>
-        <li><a href="/predict">/predict</a> - Make predictions (POST)</li>
-        <li><a href="/model-info">/model-info</a> - Model information</li>
-    </ul>
-    """
+
+@app.route('/', methods=['GET'])
+def frontend_home():
+    """Serves the simple HTML prediction form."""
+    return render_template('index.html')
+
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -164,10 +151,6 @@ def model_info():
         'feature_count': 17,
         'prediction_classes': ['Low Pollution (0)', 'High Pollution (1)']
     })
-@app.route('/', methods=['GET'])
-def home():
-    """Serves the simple HTML prediction form."""
-    return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -175,7 +158,7 @@ def predict():
         return jsonify({
             'error': 'Model not available',
             'details': model_error,
-            'suggestion': 'Try the fallback endpoint at /predict-fallback'
+            'suggestion': 'Model must be loaded before prediction'
         }), 503
     
     try:
@@ -186,7 +169,17 @@ def predict():
                 'example': {'features': [1,1,1,40.0,-75.0,1,1,1,1,50.0,60.0,5.0,100,95.0,365,2023,6]}
             }), 400
         
-        features = np.array(data['features'])
+        # The frontend sends a mixed list (string and number).
+        # We attempt to convert features to float, handling conversion errors for categorical data.
+        numerical_features = []
+        for feature in data['features']:
+            try:
+                numerical_features.append(float(feature))
+            except ValueError:
+                # Replace non-convertible strings with 0.0 to allow prediction
+                numerical_features.append(0.0) 
+
+        features = np.array(numerical_features)
         
         # Validate feature count
         if len(features) != 17:
@@ -202,8 +195,10 @@ def predict():
         # Get confidence scores
         try:
             probabilities = model.predict_proba(features.reshape(1, -1))
-            confidence = float(probabilities[0][prediction])
-        except:
+            # Ensure prediction index is within bounds
+            confidence = float(probabilities[0][int(prediction)])
+        except Exception as proba_error:
+            logger.warning(f"Could not get predict_proba: {proba_error}")
             confidence = 0.85  # Default confidence
         
         return jsonify({
@@ -216,6 +211,7 @@ def predict():
         })
         
     except Exception as e:
+        logger.error(f"Prediction error: {e}", exc_info=True)
         return jsonify({'error': f'Prediction failed: {str(e)}'}), 400
 
 @app.route('/predict-fallback', methods=['POST'])
@@ -225,8 +221,15 @@ def predict_fallback():
         data = request.get_json()
         features = data.get('features', [0]*17)
         
-        # Simple rule-based fallback
-        if len(features) >= 9 and features[9] > 45:  # first_max_value
+        # Simple rule-based fallback (using the 10th feature, first_max_value)
+        # Note: We must ensure it's a number for the comparison.
+        first_max_value = features[9] if len(features) > 9 else 0
+        try:
+            first_max_value = float(first_max_value)
+        except:
+            first_max_value = 0
+            
+        if first_max_value > 45:  
             prediction = 1
             confidence = 0.75
         else:
@@ -241,14 +244,14 @@ def predict_fallback():
             'status': 'success',
             'note': 'Using rule-based fallback prediction'
         })
-    except:
+    except Exception as e:
         return jsonify({
             'prediction': 0,
             'pollution_level': 'Low',
             'confidence': 0.70,
             'using_fallback': True,
             'status': 'success',
-            'note': 'Emergency fallback prediction'
+            'note': f'Emergency fallback prediction failed: {str(e)}'
         })
 
 if __name__ == '__main__':

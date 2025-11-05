@@ -4,33 +4,74 @@
     <meta charset="UTF-8">
     <title>Air Quality Predictor</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        label { display: block; margin-top: 10px; }
-        input { width: 300px; padding: 5px; margin-bottom: 10px; }
-        button { padding: 10px 20px; cursor: pointer; }
-        #result { margin-top: 20px; font-weight: bold; color: green; }
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
+        p { color: #7f8c8d; }
+        label { display: block; margin-top: 15px; font-weight: 600; color: #34495e; }
+        textarea { 
+            width: 100%; 
+            padding: 10px; 
+            margin-top: 5px; 
+            border: 1px solid #bdc3c7; 
+            border-radius: 6px; 
+            box-sizing: border-box; 
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button { 
+            background-color: #3498db; 
+            color: white; 
+            padding: 12px 25px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin-top: 20px; 
+            transition: background-color 0.3s ease;
+            font-weight: 700;
+        }
+        button:hover { background-color: #2980b9; }
+        #result { 
+            margin-top: 30px; 
+            padding: 15px; 
+            border-radius: 8px; 
+            font-size: 1.1em;
+            text-align: center;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <h2>Air Quality Prediction Form</h2>
-    <p>Using the **/predict** endpoint on your EC2 instance.</p>
-    <form id="prediction-form">
-        <label for="json_data">Input Features (JSON Array, 17 items):</label>
-        <textarea id="json_data" rows="10" cols="60">["California", "Los Angeles", "Los Angeles", 34.05, -118.25, "Ozone", "8-HR RUN AVG", "Ozone 8-hour 2015", "Parts per million", 0.04, 0.038, 0.005, 300, 95.5, 360, 2024, 6]</textarea>
-        <br>
-        <button type="submit">Get Prediction</button>
-    </form>
-    <div id="result"></div>
+    <div class="container">
+        <h2>Air Quality Prediction Form</h2>
+        <p>Using the **/predict** endpoint on your EC2 instance. This requires 17 features.</p>
+        
+        <form id="prediction-form">
+            <label for="json_data">Input Features (JSON Array, 17 items):</label>
+            <textarea id="json_data" rows="10" cols="60">["California", "Los Angeles", "Los Angeles", 34.05, -118.25, "Ozone", "8-HR RUN AVG", "Ozone 8-hour 2015", "Parts per million", 0.04, 0.038, 0.005, 300, 95.5, 360, 2024, 6]</textarea>
+            <br>
+            <button type="submit">Get Prediction</button>
+        </form>
+        <div id="result" style="color:#3498db;">Ready to predict.</div>
+    </div>
 
     <script>
         document.getElementById('prediction-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const jsonText = document.getElementById('json_data').value.trim();
             const resultDiv = document.getElementById('result');
+            resultDiv.style.color = '#3498db'; // Blue for loading
             resultDiv.innerHTML = 'Predicting...';
 
             try {
+                // Parse features (assuming it is a simple array)
                 const featureArray = JSON.parse(jsonText);
+                
+                // Final feature count validation 
+                if (featureArray.length !== 17) {
+                    throw new Error(`Expected 17 features, but received ${featureArray.length}.`);
+                }
+
                 const response = await fetch('/predict', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -40,14 +81,24 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    resultDiv.style.color = 'green';
-                    resultDiv.innerHTML = `✅ Prediction: ${data.prediction_class} (Score: ${data.score.toFixed(4)})`;
+                    const fallbackStatus = data.using_fallback 
+                        ? '<span style="color:orange; font-size: 0.9em;">(Using Fallback Model)</span>' 
+                        : '';
+                    
+                    // Set color based on prediction level
+                    resultDiv.style.color = data.pollution_level === 'High' ? '#c0392b' : '#27ae60';
+
+                    // Use the correct keys from your app.py response: pollution_level and confidence
+                    resultDiv.innerHTML = `
+                        ✅ Prediction: <strong>${data.pollution_level}</strong> ${fallbackStatus}
+                        <br>Confidence: ${data.confidence.toFixed(4)}
+                    `;
                 } else {
-                    resultDiv.style.color = 'red';
-                    resultDiv.innerHTML = `❌ Error: ${data.error || 'Unknown Error'}`;
+                    resultDiv.style.color = '#e74c3c'; // Red for error
+                    resultDiv.innerHTML = `❌ API Error (${response.status}): ${data.error || 'Unknown Error'}`;
                 }
             } catch (error) {
-                resultDiv.style.color = 'red';
+                resultDiv.style.color = '#e74c3c'; // Red for client-side error
                 resultDiv.innerHTML = `❌ Request Failed: ${error.message}`;
             }
         });
