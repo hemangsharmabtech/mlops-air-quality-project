@@ -41,9 +41,6 @@ jobs:
         output = json
         EOF
         
-        # Verify AWS configuration
-        aws sts get-caller-identity
-        
     - name: Initialize DVC and pull data
       run: |
         echo "Initializing DVC..."
@@ -52,8 +49,8 @@ jobs:
           dvc init --no-scm
         fi
         
-        # Configure DVC remote
-        dvc remote add -d myremote s3://mlops-air-quality-hemang/storage || echo "Remote already exists"
+        # Configure DVC remote (using your actual bucket name)
+        dvc remote add -d myremote s3://mlops-air-quality-bucket/storage || echo "Remote already exists"
         
         echo "Pulling data with DVC..."
         dvc pull
@@ -114,11 +111,19 @@ jobs:
           mkdir -p ~/.aws
           cat > ~/.aws/credentials << EOF
           [default]
-          aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_access_key_id = $AWS_ACCESS_KEY_ID
+          aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
           region = ap-south-1
           output = json
           EOF
+          
+          # Initialize DVC if needed
+          if [ ! -d ".dvc" ]; then
+            dvc init --no-scm
+          fi
+          
+          # Configure DVC remote
+          dvc remote add -d myremote s3://mlops-air-quality-bucket/storage || echo "Remote already exists"
           
           # Pull latest data and model
           dvc pull

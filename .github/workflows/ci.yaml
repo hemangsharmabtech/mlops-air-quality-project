@@ -65,8 +65,8 @@ jobs:
           dvc init --no-scm
         fi
         
-        # Configure DVC remote
-        dvc remote add -d myremote s3://mlops-air-quality-hemang/storage || echo "Remote already exists"
+        # Configure DVC remote (using your actual bucket name)
+        dvc remote add -d myremote s3://mlops-air-quality-bucket/storage || echo "Remote already exists"
         
         echo "Pulling data with DVC..."
         dvc pull
@@ -141,8 +141,8 @@ jobs:
           dvc init --no-scm
         fi
         
-        # Configure DVC remote
-        dvc remote add -d myremote s3://mlops-air-quality-hemang/storage || echo "Remote already exists"
+        # Configure DVC remote (using your actual bucket name)
+        dvc remote add -d myremote s3://mlops-air-quality-bucket/storage || echo "Remote already exists"
         
         echo "Pulling data with DVC..."
         dvc pull
