@@ -44,8 +44,18 @@ jobs:
         # Verify AWS configuration
         aws sts get-caller-identity
         
-    - name: Pull data and model
+    - name: Initialize DVC and pull data
       run: |
+        echo "Initializing DVC..."
+        # Check if .dvc directory exists and initialize if needed
+        if [ ! -d ".dvc" ]; then
+          dvc init --no-scm
+        fi
+        
+        # Configure DVC remote
+        dvc remote add -d myremote s3://mlops-air-quality-hemang/storage || echo "Remote already exists"
+        
+        echo "Pulling data with DVC..."
         dvc pull
         
     - name: Build Docker image

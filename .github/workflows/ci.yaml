@@ -19,11 +19,6 @@ jobs:
         fetch-depth: 0
       
     - name: Set up Python 3.10
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-      
-    - name: Set up Python 3.10
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
@@ -62,14 +57,27 @@ jobs:
         # Verify AWS configuration
         aws sts get-caller-identity
         
-    - name: Pull data with DVC
+    - name: Initialize DVC and pull data
       run: |
+        echo "Initializing DVC..."
+        # Check if .dvc directory exists and initialize if needed
+        if [ ! -d ".dvc" ]; then
+          dvc init --no-scm
+        fi
+        
+        # Configure DVC remote
+        dvc remote add -d myremote s3://mlops-air-quality-hemang/storage || echo "Remote already exists"
+        
+        echo "Pulling data with DVC..."
         dvc pull
         
     - name: Display project structure
       run: |
         echo "Project structure:"
         find . -name "*.py" -o -name "*.yaml" -o -name "*.yml" | head -20
+        echo ""
+        echo "DVC status:"
+        dvc status || echo "DVC status not available"
         echo ""
         echo "Data directory:"
         ls -la data/raw/ && ls -la data/processed/ || echo "No processed data"
@@ -125,11 +133,18 @@ jobs:
         output = json
         EOF
         
-        # Verify AWS configuration
-        aws sts get-caller-identity
-        
-    - name: Pull data
+    - name: Initialize DVC and pull data
       run: |
+        echo "Initializing DVC..."
+        # Check if .dvc directory exists and initialize if needed
+        if [ ! -d ".dvc" ]; then
+          dvc init --no-scm
+        fi
+        
+        # Configure DVC remote
+        dvc remote add -d myremote s3://mlops-air-quality-hemang/storage || echo "Remote already exists"
+        
+        echo "Pulling data with DVC..."
         dvc pull
         
     - name: Train the model
