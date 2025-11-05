@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import numpy as np
 import os
 import sys
@@ -164,6 +164,10 @@ def model_info():
         'feature_count': 17,
         'prediction_classes': ['Low Pollution (0)', 'High Pollution (1)']
     })
+@app.route('/', methods=['GET'])
+def home():
+    """Serves the simple HTML prediction form."""
+    return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
