@@ -1,5 +1,5 @@
 outs:
-- md5: d7ac31d3139f5470dcde35fd65f8a231
-  size: 16085017
+- md5: a6362e353ae2d5c027cc2a92c6d8c1db
+  size: 14479945
   hash: md5
   path: air_quality_model.pkl

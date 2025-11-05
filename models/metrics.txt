@@ -1,7 +1,7 @@
 Accuracy: 0.9933
-Training_Time: 155.48 seconds
+Training_Time: 141.62 seconds
 Train_Samples: 1630940
 Test_Samples: 407736
 Feature_Count: 17
-NumPy_Version: 2.2.6
-Scikit_Learn_Version: 1.7.2
+NumPy_Version: 1.24.3
+Scikit_Learn_Version: 1.2.2
